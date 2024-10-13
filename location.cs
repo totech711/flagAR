@@ -1,49 +1,98 @@
 using UnityEngine;
+using TMPro;
 using System.Collections;
 
-public class GPSLocation : MonoBehaviour
+public class TestLocationServices : MonoBehaviour
 {
-    // Start is called before the first frame update
-    IEnumerator Start()
+    public TMP_Text gpsText;
+    private bool isLocationServiceRunning = false;
+    private float lastLatitude = 0f;
+    private float lastLongitude = 0f;
+
+    void Start()
     {
-        // Check if user has location service enabled
+        // Start the coroutine to get GPS data
+        StartCoroutine(StartLocationService());
+    }
+
+    IEnumerator StartLocationService()
+    {
         if (!Input.location.isEnabledByUser)
         {
-            Debug.Log("Location services are not enabled by the user.");
+            gpsText.text = "Location services not enabled.";
+            Debug.LogError("Location services not enabled.");
             yield break;
         }
 
-        // Start location service before querying GPS data
-        Input.location.Start();
+        // Start location service with high accuracy (1 meter) and minimal movement to trigger an update (0.1 meters)
+        Input.location.Start(1f, 0.1f); 
 
-        // Wait until service initializes
         int maxWait = 20;
         while (Input.location.status == LocationServiceStatus.Initializing && maxWait > 0)
         {
+            gpsText.text = "Initializing location services...";
+            Debug.Log("Initializing location services...");
             yield return new WaitForSeconds(1);
             maxWait--;
         }
 
-        // Service didn't initialize in 20 seconds
         if (maxWait <= 0)
         {
-            Debug.Log("Timed out waiting for location services.");
+            gpsText.text = "Location initialization timed out.";
+            Debug.LogError("Location initialization timed out.");
             yield break;
         }
 
-        // Check if service is not available
         if (Input.location.status == LocationServiceStatus.Failed)
         {
-            Debug.Log("Unable to determine device location.");
+            gpsText.text = "Failed to retrieve location.";
+            Debug.LogError("Failed to retrieve location.");
             yield break;
         }
         else
         {
-            // Access granted and location value could be retrieved
-            Debug.Log("Location: " + Input.location.lastData.latitude + " " + Input.location.lastData.longitude);
+            gpsText.text = "Location service started.";
+            isLocationServiceRunning = true;
+            Debug.Log("Location service started successfully.");
         }
+    }
 
-        // Stop the location service if there's no need to query location updates continuously
-        Input.location.Stop();
+    void Update()
+    {
+        if (isLocationServiceRunning && Input.location.status == LocationServiceStatus.Running)
+        {
+            // Retrieve the current latitude and longitude
+            float currentLatitude = Input.location.lastData.latitude;
+            float currentLongitude = Input.location.lastData.longitude;
+
+            // Only update if the coordinates have changed
+            if (currentLatitude != lastLatitude || currentLongitude != lastLongitude)
+            {
+                lastLatitude = currentLatitude;
+                lastLongitude = currentLongitude;
+
+                // Update the UI with the new coordinates
+                gpsText.text = "Coordinates: Latitude: " + currentLatitude.ToString("F6") + 
+                               ", Longitude: " + currentLongitude.ToString("F6");
+
+                Debug.Log("Coordinates updated: Latitude: " + currentLatitude + ", Longitude: " + currentLongitude);
+            }
+        }
+        else if (Input.location.status != LocationServiceStatus.Running)
+        {
+            gpsText.text = "Waiting for GPS signal...";
+            Debug.Log("Waiting for GPS signal...");
+        }
+    }
+
+    void OnDisable()
+    {
+        // Stop location service when the script is disabled or the object is destroyed
+        if (isLocationServiceRunning)
+        {
+            Input.location.Stop();
+            isLocationServiceRunning = false;
+            Debug.Log("Location service stopped.");
+        }
     }
 }
